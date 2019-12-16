@@ -1,0 +1,19 @@
+{
+    "stuff": {
+        "doodads": {
+            "ok": "sure",
+            "yea": true,
+            "objs": {
+                "yeah": "buddy"
+            },
+            "things": ["one", "two"],
+            "nummer": 5,
+            "floater": 5.55
+        }
+    },
+    "more_stuff": {
+        "ayy": {
+            "okok": "yeayea"
+        }
+    }
+}
