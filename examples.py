@@ -3,12 +3,12 @@
 import json
 import hcl  # pip install pyhcl
 
-from hcler import HCLer
+from hclwriter import HCLWriter
 
 # json source
 with open("stuff.json") as f:
     stuff = json.load(f)
-h = HCLer(stuff)
+h = HCLWriter(stuff)
 print(h)
 
 # hcl source
@@ -16,6 +16,6 @@ with open("in.hcl") as f:
     data = hcl.load(f)
 
 data["path"]["auth/*"]["capabilities"].append("fancy")
-h = HCLer(data)
+h = HCLWriter(data)
 print(h)
-h.write("out.hcl")
+h._write("out.hcl")
