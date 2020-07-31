@@ -1,158 +1,126 @@
 import logging
+from copy import deepcopy
+
 logger = logging.getLogger(__name__)
 
-
-class HCLDocument:
-    def __init__(self):
-        self.blocks = []
-
-    def add(self, block):
-        self.blocks.append(block)
-
-    def write(self, filename=None):
-        if filename:
-            with open(filename, 'w') as f:
-                for block in self.blocks:
-                    logger.info(str(block))
-                    f.write(str(block) + '\n')
-        else:
-            for block in self.blocks:
-                print(block)
+# TODO: type hinting (ignore python2)
+# TODO: json? https://www.terraform.io/docs/configuration/syntax-json.html
 
 
 class Block:
-    def __init__(self, block):
-        self._block = block
+    _count = 0  # TODO: remove?  or leave for "proviling" ??
+
+    def __init__(self, name: str):
+        Block._count += 1
+        self._name = name
         self._attrs = []
         self._args = ()
         self._kwargs = {}
         self._after_call_attrs = []
         self._called = False
 
+    def __copy__(self):
+        return deepcopy(self)
+
+    def __deepcopy__(self, memo):
+        cp = self.__class__(self._name)
+        cp.__dict__ = deepcopy(self.__dict__)
+        return cp
+
     def __getattr__(self, attr):
-        if self._called:
-            # these are for referencing blocks in other blocks.
-            self._after_call_attrs.append(attr)
-        else:
-            # this builds the actual content of the block
+        # build the content of the hcl block
+        if not self._called:
             self._attrs.append(attr)
-        return self
+            return self
+
+        # for referencing blocks as values in other blocks
+        # we make a copy so that _after_call_attrs is unique per reference
+        # TODO: return a BlockReference instead?  premature optimization
+        cp = deepcopy(self)
+        cp._after_call_attrs.append(attr)
+        return cp
 
     __getitem__ = __getattr__
 
-    def __call__(self, *a, **kw):  # TODO: arguments? parameters?
-        self._args = a
-        self._kwargs = kw
-        self._called = True
+    def __call__(self, *a, **kw):
+        if self._called:
+            raise NotImplementedError('Block parameters already locked in.')
+        else:
+            self._args = a
+            self._kwargs = kw
+            self._called = True
+        # TODO: return a FinalizedBlock?
         return self
 
-    # def _map(self, *a, **kw):
-    #     def run():
-    #         return a, kw
-    #     return run
-
     @property
-    def _mapped(self):
-        mapped = {self._block: {
-            # ".".join(self._attrs): self._kwargs
-            ".".join(self._attrs): dict(a=self._args, kw=self._kwargs)
-            # ".".join(self._attrs): (self._args, self._kwargs)
-        }}
-        logger.debug("mapped: %s" % mapped)
-        return mapped
-
-    @property
-    def _hclwriter(self):
-        return HCLWriter(self._mapped)
+    def _writer(self):
+        return HCLWriter(self._name, self._attrs, *self._args, **self._kwargs)
 
     def __str__(self):
-        return self._hclwriter.string
+        return str(self._writer)
 
     def __repr__(self):
-        # TODO: without being terraform, this makes a lot less sense?
-        # TODO: and loses self._block (and others attrs?)
-        return ".".join(self._attrs + self._after_call_attrs)
+        # TODO: is this a sensible non-terraform default?
+        return '.'.join([self._name] + self._attrs + self._after_call_attrs)
 
     def _write(self, *a, **kw):
-        self._hclwriter._write(*a, **kw)
-
-
-class TerraformBlock(Block):
-    def __repr__(self):
-        if self._block == "provider":
-            bits = self._attrs + [self._kwargs["alias"]]
-        elif self._block in ["data", "module"]:
-            bits = [self._block] + self._attrs + self._after_call_attrs
-        else:
-            bits = self._attrs + self._after_call_attrs
-        return ".".join(bits)
+        self._writer.write(*a, **kw)
 
 
 class HCLWriter:
-    def __init__(self, data):
+    def __init__(self, _block_type, _block_names, *a, **kw):
+        self.converted = convert(_block_type, _block_names, *a, **kw)
+
+    def __str__(self):
         # funny dance to remove extraneous newlines.
         # placed here instead of elsewhere, because it has full context
-        # of the entire string representation.
-        stringed = convert(data)
-        lines = stringed.splitlines()
+        # of the entire block string.
+        # TODO: fix logic elsewhere instead?
         result = []
+        lines = self.converted.splitlines()
         for idx, line in enumerate(lines):
             if line == '' and lines[idx-1].endswith('}'):
                 continue
             result.append(line)
-        self.string = '\n'.join(result) + '\n'
+        return '\n'.join(result) + '\n'
 
-    def __str__(self):
-        return self.string
-
-    def _write(self, *a, **kw):
-        with open(*a, **kw) as f:
-            logger.info(str(self))
-            f.write(str(self) + '\n')
+    def write(self, *a, **kw):
+        print(str(self))
+        if a or kw:
+            with open(*a, **kw) as f:
+                f.write(str(self) + '\n')
 
 
-def convert(data):
-    blocks = {}
-    for b, vals in data.items():
-        name = list(vals.keys())[0]
-        blocks[b] = b
-        if len(name) > 0:
-            for x in name.split('.'):
-                blocks[b] += ' "%s"' % x
-        blocks[b] += ' {'
+def convert(block_type, block_names, *args, **kwargs):
+    block = block_type
+    for n in block_names:
+        block += ' "%s"' % n
+    block += ' {'
+    if not args and not kwargs:
+        return block + '}'
 
-        data = vals[name]
+    # named args first
+    block += recurse(kwargs)
 
-        # TODO: move this tf/block-knowing stuff into Block class,
-        #       or just give up on direct dict->hcl translation?
-        # named parameters
-        # TODO: KeyError 'kw' from stuff.py
-        blocks[b] += recurse(data['kw'])
-        # blocks
-        # TODO: move nested indentation logic elsewhere
-        for a in data['a']:
-            block = '\n\n'
-            for line in str(a).splitlines():
-                if line == '':
-                    block += '\n'
-                else:
-                    block += '  %s\n' % line
-            blocks[b] += block
+    # then nested blocks
+    for a in args:
+        if not block.endswith('{'):
+            block += '\n'
+        block += '\n'
+        for line in str(a).splitlines():
+            if line == '':
+                block += '\n'  # TODO: cov missing
+            else:
+                block += '  %s\n' % line
 
-    blocks[b] += '\n}\n'
-    return '\n'.join(blocks.values())
+    block += '\n}\n'
+    return block
 
 
 def recurse(val, level=1):
     content = ''
     indent = ' ' * level * 2
     for k, v in val.items():
-        # if isinstance(v, tuple):
-        #     for x in v:
-        #         print(f"HELLO I AM TUPLE: {v} -- {x}")
-        #         content += "\n%s%s {" % (indent, k)
-        #         content += recurse(x, level=level + 1)
-        #         content += "\n%s}" % indent
         if isinstance(v, list):
             content += '\n%s%s = [' % (indent, k)
             for x in v:
@@ -168,6 +136,11 @@ def recurse(val, level=1):
 
 
 def format(val):
+    # https://www.terraform.io/docs/configuration/types.html
+
+    # TODO: Warning: Quoted type constraints are deprecated.
+    #       for variables, ex: "string" -- TF("string") works though,
+    #       and TF("map(string)"), and TF("concat()") and such.
     if isinstance(val, Block):  # TODO: is this terraform-specific?
         return repr(val)
     elif isinstance(val, str):
