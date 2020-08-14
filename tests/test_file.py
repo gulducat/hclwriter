@@ -13,12 +13,21 @@ class TestHCLFile(TestCase):
     block1 {}
 
     block2 {}
-
     ''')
 
     def assert_calls(self, mo):
         mo.assert_called_with('test.hcl', 'w')
         mo().write.assert_called_with(self.expect)
+
+    def test_additions(self):
+        f = HCLFile(filename='forgetme.hcl')
+        # will write() in order of addition
+        f += self.b1
+        f += self.b2
+
+        with patch('builtins.open', mock_open()) as mo:
+            f.write(filename='test.hcl')  # overrides __init__ filename
+        self.assert_calls(mo)
 
     def test_subclass(self):
         class MyFile(HCLFile):
@@ -32,30 +41,16 @@ class TestHCLFile(TestCase):
             f.write()
         self.assert_calls(mo)
 
-    def test_additions(self):
-        f = HCLFile(filename='forgetme.hcl')
-        # will write() in order of addition
-        f += self.b1
-        f += self.b2
-
+    def test_context_manager(self):
         with patch('builtins.open', mock_open()) as mo:
-            f.write(filename='test.hcl')  # overrides __init__ filename
+            with HCLFile(filename='test.hcl'):
+                Block('block1')()
+                Block('block2')()
         self.assert_calls(mo)
 
-    def test_init_args(self):
-        f = HCLFile(
-            # will write() in this order
-            self.b1,
-            self.b2,
-        )
-        with patch('builtins.open', mock_open()) as mo:
-            f.write(filename='test.hcl')
-        self.assert_calls(mo)
-
-    def test_write_args(self):
-        f = HCLFile(filename='test.hcl')
-
-        with patch('builtins.open', mock_open()) as mo:
-            # will write() in this order
-            f.write(self.b1, self.b2)
-        self.assert_calls(mo)
+    def test_multiple_context_managers(self):
+        # multiple should not step on each other,
+        # and blocks outside the context manager should be ignored
+        Block('ignore-me')()
+        self.test_context_manager()
+        self.test_context_manager()

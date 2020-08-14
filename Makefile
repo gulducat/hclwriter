@@ -1,5 +1,3 @@
-# .PHONY: test tox realthing guardduty clean
-
 # docker:
 # 	docker run --rm -it -v`pwd`:/work -w /work python:3.8 bash
 
@@ -9,33 +7,25 @@
 # test-requirements:
 # 	pip install -r tests/requirements.txt
 
+default: lint test
+
 lint:
 	flake8 setup.py examples/ hclwriter/ tests/
 
 test:
-	PYTHONPATH=$(PWD) pytest -vv --cov=hclwriter tests/ && coverage report -m
+	PYTHONPATH=$(PWD) pytest -v --cov=hclwriter tests/
 
 tox:
 	docker run --rm -it -v`pwd`:/work -w /work themattrix/tox
 
+build:
+	pip install setuptools wheel
+	python setup.py sdist bdist_wheel
+
 clean:
-	rm -rf *.egg-info dist/ build/
+	rm -rf .coverage .pytest_cache/ dist/ build/ *.egg-info/
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name __pycache__ -delete
-	# pip uninstall -y hclwriter
+	pip uninstall -y hclwriter
 
-
-
-realthing:
-	cd badoop/realthing \
-		&& terraform destroy -auto-approve \
-		&& ./realthing.py \
-		&& terraform apply -parallelism=1 -auto-approve \
-	;
-
-guardduty:
-	cd badoop/guardduty \
-		&& ./guardduty.py \
-		&& terraform fmt \
-		&& terraform validate \
-	;
+.PHONY: default lint test tox clean

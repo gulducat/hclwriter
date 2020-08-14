@@ -2,7 +2,6 @@
 
 from textwrap import dedent
 from unittest import TestCase
-from unittest.mock import mock_open, patch
 
 from hclwriter import Block
 from hclwriter.terraform import TerraformBlock as TF
@@ -15,18 +14,7 @@ def assert_blocks(string, *blocks):
     assert dedent(string) == result
 
 
-class TestBlocks(TestCase):
-    def test_write(self):
-        block = TF('block')()
-        expect = dedent('''\
-        block {}
-
-        ''')
-        with patch('builtins.open', mock_open()) as mo:
-            block._write('test.hcl', 'a')
-        mo.assert_called_with('test.hcl', 'a')
-        mo().write.assert_called_with(expect)
-
+class TestBlock(TestCase):
     def test_block_with_param(self):
         block = Block('block')(ok='sure')
         expect = '''\
@@ -89,11 +77,23 @@ class TestBlocks(TestCase):
         '''
         assert_blocks(expect, outer)
 
+    def test_non_block_arg(self):
+        with self.assertRaises(TypeError):
+            Block('block')('not a block')
+
     def test_multiple_calls(self):
         block = Block('block')
-        block()
-        with self.assertRaises(NotImplementedError):
-            block()
+        one = block(val='one')
+        two = block(val='two')
+        expect = '''\
+        block {
+          val = "one"
+        }
+        block {
+          val = "two"
+        }
+        '''
+        assert_blocks(expect, one, two)
 
     # value formatting
 
@@ -265,15 +265,15 @@ class TestTerraformBlock(TestCase):
         assert_blocks(expect, inner, outer)
 
     def test_ref_provider_require_alias(self):
-        p = TF("provider").aws()  # no alias
-        r = TF("thing")(provider=p)
+        p = TF('provider').aws()  # no alias
+        r = TF('thing')(provider=p)
         with self.assertRaises(KeyError):
             str(r)
 
     def test_ref_module(self):
         # no "source" kw is ok, let Terraform itself handle that kind of error.
-        m = TF("module").name()
-        r = TF("resource").thing.name(somekey=m)
+        m = TF('module').name()
+        r = TF('resource').thing.name(somekey=m)
         expect = '''\
         module "name" {}
         resource "thing" "name" {
