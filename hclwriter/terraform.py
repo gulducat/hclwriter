@@ -5,37 +5,37 @@ TerraformFile = file.HCLFile
 
 
 class TerraformBlock(Block):
-    def __str__(self) -> str:
-        if self._name == 'comment':  # TODO: this is HACK
-            return f'# {self._kwargs["msg"]}'
+    def __str__(_self) -> str:
+        if _self._name == 'comment':  # TODO: this is HACK
+            return f'# {_self._kwargs["msg"]}'
         return super().__str__()
 
-    def __repr__(self) -> str:
+    def __repr__(_self) -> str:
         err = None  # TODO: stack trace from errors here are confusing...  just let tf handle it?
 
-        if self._name == 'variable':
-            if len(self._attrs) != 1:
+        if _self._name == 'variable':
+            if len(_self._attrs) != 1:
                 err = 'must have exactly 1 name'
-            bits = ['var'] + self._attrs
+            bits = ['var'] + _self._attrs
 
-        elif self._name == 'locals':
-            bits = ['local'] + self._attrs + self._after_call_attrs
+        elif _self._name == 'locals':
+            bits = ['local'] + _self._attrs + _self._after_call_attrs
 
-        elif self._name == 'resource':
-            bits = self._attrs + self._after_call_attrs
+        elif _self._name == 'resource':
+            bits = _self._attrs + _self._after_call_attrs
 
-        elif self._name == 'provider':
-            bits = self._attrs + [self._kwargs['alias']]
-            # bits = self._attrs
-            # if self._kwargs.get('alias'):
-            #     bits = bits + [self._kwargs['alias']]
+        elif _self._name == 'provider':
+            bits = _self._attrs + [_self._kwargs['alias']]
+            # bits = _self._attrs
+            # if _self._kwargs.get('alias'):
+            #     bits = bits + [_self._kwargs['alias']]
 
         else:
-            return super(TerraformBlock, self).__repr__()
+            return super(TerraformBlock, _self).__repr__()
 
         if err:
             raise NotImplementedError(
-                f'{self._name} {err}, got: {self._attrs}'
+                f'{_self._name} {err}, got: {_self._attrs}'
             )
 
         return '.'.join(bits)

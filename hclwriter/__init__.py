@@ -9,118 +9,118 @@ class Block:
     _total_count = 0  # TODO: remove?  or leave for "proviling" ??
     _instances = []
 
-    def __init__(self, name: str):  # TODO: "name" -> "type" ?
+    def __init__(_self, name: str):  # TODO: "name" -> "type" ?
         Block._total_count += 1
-        self._name = name
-        self._attrs = []  # TODO: "attrs" -> "names" ?
-        self._args = ()
-        self._kwargs = {}
-        self._after_call_attrs = []
-        self._called = False
+        _self._name = name
+        _self._attrs = []  # TODO: "attrs" -> "names" ?
+        _self._args = ()
+        _self._kwargs = {}
+        _self._after_call_attrs = []
+        _self._called = False
 
-    def __eq__(self, other):
-        return self.__dict__ == other.__dict__
+    def __eq__(_self, other):
+        return _self.__dict__ == other.__dict__
         # TODO: is this ^ sifficient?
         # return all([
-        #     getattr(self, attr) == getattr(other, attr, None)
-        #     for attr in self.__dict__
+        #     getattr(_self, attr) == getattr(other, attr, None)
+        #     for attr in _self.__dict__
         # ])
 
-    def __copy__(self) -> 'Block':
-        return deepcopy(self)  # TODO: cov missing
+    def __copy__(_self) -> 'Block':
+        return deepcopy(_self)  # TODO: cov missing
 
-    def __deepcopy__(self, memo: dict) -> 'Block':
-        cp = self.__class__(self._name)
-        cp.__dict__ = deepcopy(self.__dict__, memo)
+    def __deepcopy__(_self, memo: dict) -> 'Block':
+        cp = _self.__class__(_self._name)
+        cp.__dict__ = deepcopy(_self.__dict__, memo)
         return cp
 
-    def __getattr__(self, attr: str) -> 'Block':
+    def __getattr__(_self, attr: str) -> 'Block':
         # build the content of the hcl block
-        if not self._called:
-            self._attrs.append(attr)
-            return self
+        if not _self._called:
+            _self._attrs.append(attr)
+            return _self
 
         # for referencing blocks as values in other blocks
         # we make a copy so that _after_call_attrs is unique per reference
-        cp = deepcopy(self)
+        cp = deepcopy(_self)
         cp._after_call_attrs.append(attr)
         return cp
 
     __getitem__ = __getattr__
 
-    def __call__(self, *args: Tuple['Block'], **kwargs) -> 'Block':
+    def __call__(_self, *args: Tuple['Block'], **kwargs) -> 'Block':
         for a in args:
             if not isinstance(a, Block):
                 raise TypeError(
                     f'non-keyword arguments must be `Block`s, got {type(a)}: {a}'
                 )
-        if self._called:
+        if _self._called:
             # make a copy, wipe its call args, call it and return it
-            cp = deepcopy(self)
+            cp = deepcopy(_self)
             cp._args = ()
             cp._kwargs = {}
             cp._called = False
             return cp(*args, **kwargs)
         else:
-            self._args = args
-            self._kwargs = kwargs
-            self._called = True
-            if self not in Block._instances:
-                Block._instances.append(self)
-        return self
+            _self._args = args
+            _self._kwargs = kwargs
+            _self._called = True
+            if _self not in Block._instances:
+                Block._instances.append(_self)
+        return _self
 
-    def __str__(self) -> str:
-        w = HCLWriter(self._name, self._attrs, *self._args, **self._kwargs)
+    def __str__(_self) -> str:
+        w = HCLWriter(_self._name, _self._attrs, *_self._args, **_self._kwargs)
         return str(w)
 
-    def __repr__(self) -> str:
+    def __repr__(_self) -> str:
         # TODO: is this a sensible non-terraform default?
-        return '.'.join([self._name] + self._attrs + self._after_call_attrs)
+        return '.'.join([_self._name] + _self._attrs + _self._after_call_attrs)
 
 
 class HCLWriter:  # TODO: how much of this is tf-specific?
-    def __init__(self,
+    def __init__(_self,
                  _block_type: str,
                  _block_names: Iterable[str],
                  *args, **kwargs):
-        self.block_type = _block_type
-        self.block_names = _block_names
-        self.args = args
-        self.kwargs = kwargs
+        _self.block_type = _block_type
+        _self.block_names = _block_names
+        _self.args = args
+        _self.kwargs = kwargs
 
-    def __str__(self) -> str:
+    def __str__(_self) -> str:
         # funny dance to remove extraneous newlines.
         # placed here instead of elsewhere, because it has full context
         # of the entire block string.
         # TODO: fix logic elsewhere instead?
         result = []
-        lines = self.hcl.splitlines()
+        lines = _self.hcl.splitlines()
         for idx, line in enumerate(lines):
             if line == '' and lines[idx-1].endswith('}'):
                 continue
             result.append(line)
         return '\n'.join(result) + '\n'
 
-    # def write(self, *args, **kwargs):
-    #     print(str(self))
+    # def write(_self, *args, **kwargs):
+    #     print(str(_self))
     #     if args or kwargs:
     #         with open(*args, **kwargs) as f:
-    #             f.write(str(self) + '\n')
+    #             f.write(str(_self) + '\n')
 
     @property
-    def hcl(self):
-        block = self.block_type
-        for n in self.block_names:
+    def hcl(_self):
+        block = _self.block_type
+        for n in _self.block_names:
             block += ' "%s"' % n
         block += ' {'
-        if not self.args and not self.kwargs:
+        if not _self.args and not _self.kwargs:
             return block + '}'
 
         # named args first
-        block += recurse(self.kwargs)
+        block += recurse(_self.kwargs)
 
         # then nested blocks
-        for a in self.args:
+        for a in _self.args:
             if not block.endswith('{'):
                 block += '\n'
             block += '\n'

@@ -281,3 +281,13 @@ class TestTerraformBlock(TestCase):
         }
         '''
         assert_blocks(expect, m, r)
+
+    def test_self_kw(self):
+        # regression test - "self" is a valid hcl param
+        b = TF('thing').ok(self='sure')
+        expect = '''\
+        thing "ok" {
+          self = "sure"
+        }
+        '''
+        assert_blocks(expect, b)
